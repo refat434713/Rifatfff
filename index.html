@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Talking Rabbit - 6 Sec Record</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Comic Sans MS', cursive, sans-serif; }
+    body { touch-action: none; overflow: hidden; height: 100vh; width: 100vw; background: #000; }
+    
+    #welcome-screen { position: fixed; width: 100%; height: 100%; background: linear-gradient(135deg, #f093fb, #f5576c); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 30; }
+    #welcome-image-start { width: 85%; max-width: 350px; border-radius: 30px; }
+    #play-button { margin-top: 30px; padding: 15px 40px; background: #ff1493; color: white; font-size: 28px; border-radius: 50px; border: none; cursor: pointer; }
+
+    #main-screen { position: fixed; width: 100%; height: 100%; display: none; z-index: 1; }
+    #static-poster { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 5; display: block; }
+
+    #video-container { position: absolute; width: 100%; height: 100%; background: #000; z-index: 2; }
+    #video-container video { position: absolute; width: 100%; height: 100%; object-fit: cover; opacity: 0; }
+    #video-container video.active { opacity: 1; }
+
+    #control-panel { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; z-index: 20; }
+    .control-button { width: 75px; height: 75px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 30px; border: 4px solid white; cursor: pointer; transition: 0.2s; }
+    .laugh-btn { background: #fbbf24; }
+    .mic-btn { background: #ff69b4; width: 85px; height: 85px; }
+    .music-btn { background: #a78bfa; }
+    
+    /* রেকর্ডিং চলার সময় এনিমেশন */
+    .mic-active { background: #ff0000 !important; box-shadow: 0 0 25px #ff0000; animation: pulse 1s infinite; }
+    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+  </style>
+</head>
+<body>
+
+  <audio id="laugh-audio-file" src="laughing.wav"></audio>
+
+  <div id="welcome-screen">
+    <img id="welcome-image-start" src="tom_welcome.png" alt="Rabbit" />
+    <button id="play-button">START</button>
+  </div>
+
+  <div id="main-screen">
+    <img id="static-poster" src="tom_welcome.png" alt="Static Rabbit" />
+    <div id="video-container">
+      <video id="listen-video" src="tom_listing.mp4" muted playsinline loop></video>
+      <video id="talk-video" src="tom_talking.mp4" muted playsinline loop></video>
+      <video id="laugh-video" src="laughing.mp4" muted playsinline></video>
+      <video id="music-video" src="music.mp4" playsinline></video>
+    </div>
+
+    <div id="control-panel">
+      <button class="control-button laugh-btn" id="btn-laugh">😄</button>
+      <button class="control-button mic-btn" id="btn-mic">🎙️</button>
+      <button class="control-button music-btn" id="btn-music">🎵</button>
+    </div>
+  </div>
+
+  <script>
+    const vids = {
+      listen: document.getElementById('listen-video'),
+      talk: document.getElementById('talk-video'),
+      laugh: document.getElementById('laugh-video'),
+      music: document.getElementById('music-video')
+    };
+    const staticPoster = document.getElementById('static-poster');
+    const laughAudio = document.getElementById('laugh-audio-file');
+    const micBtn = document.getElementById('btn-mic');
+    
+    let mediaRecorder;
+    let audioChunks = [];
+    let isRecording = false;
+
+    function showStaticImage() {
+      staticPoster.style.display = 'block';
+      Object.values(vids).forEach(v => { v.classList.remove('active'); v.pause(); v.currentTime = 0; });
+      laughAudio.pause();
+    }
+
+    function startAction(key, isMuted) {
+      staticPoster.style.display = 'none';
+      Object.values(vids).forEach(v => v.classList.remove('active'));
+      vids[key].muted = isMuted;
+      vids[key].classList.add('active');
+      vids[key].play();
+    }
+
+    document.getElementById('play-button').onclick = () => {
+      document.getElementById('welcome-screen').style.display = 'none';
+      document.getElementById('main-screen').style.display = 'block';
+      showStaticImage();
+    };
+
+    // ৬ সেকেন্ড রেকর্ডিং লজিক
+    micBtn.onclick = async () => {
+      if (isRecording) return;
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+
+        // রেকর্ডিং শুরু
+        isRecording = true;
+        micBtn.classList.add('mic-active');
+        startAction('listen', true);
+
+        mediaRecorder.ondataavailable = (event) => audioChunks.push(event.data);
+
+        mediaRecorder.onstop = () => {
+          isRecording = false;
+          micBtn.classList.remove('mic-active');
+          
+          const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+          const audioUrl = URL.createObjectURL(audioBlob);
+          const audio = new Audio(audioUrl);
+          
+          // কার্টুন ভয়েস ইফেক্ট
+          audio.playbackRate = 1.6; 
+          
+          startAction('talk', true);
+          audio.play();
+
+          audio.onended = () => {
+            showStaticImage();
+          };
+        };
+
+        mediaRecorder.start();
+
+        // ৬ সেকেন্ড পর অটোমেটিক থামিয়ে দেওয়া
+        setTimeout(() => {
+          if (mediaRecorder.state === "recording") {
+            mediaRecorder.stop();
+          }
+        }, 6000); // ৬০০০ মিলিসেকেন্ড = ৬ সেকেন্ড
+
+      } catch (err) {
+        alert("Microphone permission needed!");
+      }
+    };
+
+    // হাসি ও মিউজিক বাটন
+    document.getElementById('btn-laugh').onclick = () => {
+      startAction('laugh', true);
+      laughAudio.play();
+      laughAudio.onended = () => showStaticImage();
+    };
+
+    document.getElementById('btn-music').onclick = () => {
+      startAction('music', false);
+      vids.music.onended = () => showStaticImage();
+    };
+  </script>
+</body>
+</html>
